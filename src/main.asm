@@ -3,12 +3,14 @@ org 0x7c00
 
 bits 16 ; Para retrocompatibilidade
 
+; Código para fim de linha. Melhor escrever ENDL do que o hex o tempo todo.
 %define ENDL 0x0D, 0x0A
 
 start:
-    jmp main
+    jmp main ; Pulando para main.
 
 
+; === Função ===
 ; Printa algo na tela.
 print:
     push si
@@ -16,13 +18,13 @@ print:
     push bx
 
 .loop:
-    lodsb
-    or al, al
+    lodsb ;Loop lê os bytes da memória e exibe na tela.
+    or al, al   ; Quando o próximo caractere for nulo, pare o loop.
     jz .done
 
     mov ah, 0x0e
     mov bh, 0
-    int 0x10
+    int 0x10 ;Use a interrupção para imprimir o conteúdo na tela.
 
     jmp .loop
 
@@ -37,9 +39,11 @@ main:
     mov ds, ax
     mov es, ax
 
+    ; Iniciando a Stack de Comandos depois do nosso SO, para não ter conflito.
     mov ss, ax
     mov sp, 0x7c00
 
+    ; Passando a mensage e chamando a função.
     mov si, msg
     call print
 
