@@ -1,1 +1,1 @@
-Fazendo um sistema operacional seguindo a [série e o projeto](https://github.com/nanobyte-dev/nanobyte_os) de (nanobyte)[https://github.com/nanobyte-dev].
+Fazendo um sistema operacional seguindo a [série e o projeto](https://github.com/nanobyte-dev/nanobyte_os) de [nanobyte](https://github.com/nanobyte-dev).
