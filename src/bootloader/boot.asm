@@ -1,3 +1,9 @@
+; BOOTLOADER
+; - Primeiro software a ser chamado.
+; - Responsável por carregar o resto do sistema operacional (kernel) na RAM.
+
+
+
 ; Endereço em que esperamos que o código seja executado.
 org 0x7c00
 
@@ -7,8 +13,8 @@ bits 16 ; Para retrocompatibilidade
 %define ENDL 0x0D, 0x0A
 
 
-
-; Configurando o sistema de arquivos FAT12 (São necessário alguns headers)
+; ===== SISTEMA DE ARQUIVOS =====
+; Configurando o sistema de arquivos FAT12 (São necessários alguns headers)
 jmp short start
 nop
 
@@ -39,7 +45,7 @@ start:
     jmp main ; Pulando para main.
 
 
-; ===== Funções =====
+; ===== CÓDIGO DE MENSAGEM INICIAL =====
 ; Printa algo na tela.
 print:
     ; Salvando o conteúdo dos registradores na pilha para manter os estados depois.
@@ -77,19 +83,154 @@ main:
     mov sp, 0x7c00
 
     ; Passando a mensage e chamando a função.
-    mov si, msg
+    mov si, msg_initializing
     call print
 
     hlt ; Interompe a CPU.
 
 
+; ===== ERROS =====
+; Aqui lidamos com eles.
+
+floppy_error:
+    mov si, msg_error_read_from_disk ; Mensagem simples de erro.
+    call print
+    jmp wait_key_and_reboot ; Em caso de erro, tentamos o reboot.
+
+wait_key_and_reboot:
+    mov ah, 0
+    int 16h             ; Esperando o usuário clicar em qualquer tecla.
+    jmp 0FFFFh:0        ; Pulando para o início da BIOS para reboot.
+    hlt
+
 .halt:
-    jmp .halt
+    cli
+    hlt
 
 
-msg: db "Inicializando Sistema Operacional...", ENDL, 0
+; ===== IMPLEMENTANDO ROTINAS DE DISCO =====
+; Funções necessárias para a leitura de dados do disco.
 
-; ===== Criando um Setor de Inicialização de Boot =====
+; --- Convertendo LBA para CHS ---
+; LBA é um método moderno para acessar dados em disco.
+; O disco é tratado como uma sequência linear de setores.
+; CHS é o método utilizado em discos antigos.
+; Discos antigos possuíam cilindros, setores e cabeças.
+
+; Essa função converte endereços LBA para CHS para garantir retrocompatibilidade com sistemas legado.
+
+; As fórmulas para conversão são:
+; Cilindro = LBA/Cabeças por Cilindro * Setores por Trilha
+; Cabeça = LBA % (Cabeças por Cilindro * Setores por Trilha) / Setores por Trilha
+; Setor = LBA % (Cabeças por Cilindro * Setores por Trilha) % Setores por Trilha + 1
+
+; Parâmetros
+; - ax: Endereço LBA
+
+; Retornos
+; - cx [bits 0-5]: Número de Setor
+; - cx [bits 6-15]: Cilindro utilizado
+; - dh: Cabeça do disco
+
+lba_to_chs:
+
+    ; Salvando o valor dos registradores antes de começar as operações.
+    push ax
+    push dl
+
+
+    xor dx, dx  ; dx = 0
+
+    ; Divisões armazenam o quociente em parte alta (ax) e o resto e parte baixa (dx)
+    ; Usamos word para sinalizar a divisão de 16 bits.
+    div word [bdb_sectors_per_track]    ; ax = LBA/SetoresPorTrilha
+                                        ; dx = LBA % Setores por Trilha
+
+    inc dx  ; Somando 1 a dx para conseguir o setor.
+    mov cx, dx ; cx agora tem o setor.
+
+    xor dx, dx ; Resetando dx = 0
+    div word [bdb_heads] ; ax = LBA/Setores por Trilha / Cabeças = cilindro
+                         ; dx = LBA/Setores por Trilha % Cabeças = cabeça
+
+    mov dh, dl  ; dh recebe o valor de cabeça.
+    mov ch, al  ; ch recebe o cilindro (somente os últimos 8 bits)
+    shl ah, 6   ; Deslocando 6 bits (já que roubamos 2) para fica tudo em cx.
+    or cl, ah   ; passando 2 bits de cilindro para cl (precisamos de 10)
+
+
+    ; Restaurando o valor dos registradores e retornando os valores da função.
+    pop ax
+    mov dl, al
+    pop ax
+    
+    ret
+
+
+; --- Lendo Setores de um Disco ---
+
+; Parâmetros
+; - ax: Endereço LBA
+; - cl: Número de Setores
+; - dl: Número de driver
+; - es:bx: Endereço de memória no qual iremos armazenar os dados.
+
+disk_read:
+
+    ; Salvando Registradores
+    push ax                             
+    push bx
+    push cx
+    push dx
+    push di
+    
+    ; Salvando cx (número de setores) antes da função
+    push cx
+
+    call lba_to_chs ; Convertendo
+    pop ax
+
+    mov ah, 02h
+    mov di, 3 ;Contagem de tentativas.
+
+; Discos Floppy não são muito confiáveis e podem gerar na leitura. Assim, tentamos a leitura 
+; 03 vezes antes de declarar um erro.
+.retry:
+    pusha           ; Salvando Registradores, porque a BIOS pode modificar
+    stc             ; Flag de Carry, que algumas BIOS não setam.
+    int 13h         ; Leitura
+    jnc .done       ; Caso sem erros, vai para o fim (.done)
+
+    popa            ; Caso contrário, retorna os registradores
+    call disk_reset ; E chama de novo a função.
+
+    dec di          ; Diminui o loop em 1.
+    test di, di
+    jnz .retry
+
+.fail:
+    jmp floppy_error ; Caso de falha, vá para a seção de erros.
+
+.done:
+    popa
+
+    ; Restaurando Registradores
+    pop di
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+
+    ret
+
+
+
+
+msg_initializing: db "Inicializando Sistema Operacional...", ENDL, 0
+msg_error_read_from_disk: db "Falha na Leitura de Disco!", ENDL, 0
+
+
+; ===== CRIANDO SETOR DE INICIALIZAÇÃO DE BOOT =====
 ; Um setor válido possui 512 bytes.
 times 510-($-$$) db 0 ; Vamos preencher 510 com zeros...
 dw 0AA55h ; E o último byte com a assinatura de validação.
