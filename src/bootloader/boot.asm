@@ -94,6 +94,7 @@ main:
     mov si, msg_initializing
     call print
 
+    cli
     hlt ; Interompe a CPU.
 
 
@@ -144,7 +145,7 @@ lba_to_chs:
 
     ; Salvando o valor dos registradores antes de começar as operações.
     push ax
-    push dl
+    push dx
 
 
     xor dx, dx  ; dx = 0
