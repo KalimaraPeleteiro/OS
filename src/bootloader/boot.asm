@@ -82,6 +82,14 @@ main:
     mov ss, ax
     mov sp, 0x7c00
 
+    ; Lendo algo do disco.
+    mov [ebr_drive_number], dl
+
+    mov ax, 1       ; LBA = 1, vamos ler o segundo setor.
+    mov cl, 1       ; 1 setor para ler
+    mov bx, 0x7E00  ; Leitura será feita no endereço logo após do bootloader
+    call disk_read
+
     ; Passando a mensage e chamando a função.
     mov si, msg_initializing
     call print
@@ -168,7 +176,6 @@ lba_to_chs:
 
 
 ; --- Lendo Setores de um Disco ---
-
 ; Parâmetros
 ; - ax: Endereço LBA
 ; - cl: Número de Setores
@@ -201,8 +208,8 @@ disk_read:
     int 13h         ; Leitura
     jnc .done       ; Caso sem erros, vai para o fim (.done)
 
-    popa            ; Caso contrário, retorna os registradores
-    call disk_reset ; E chama de novo a função.
+    popa            ; Retorna os registradores
+    call disk_reset ; Restaura o estado do controlador de disco com disk_reset
 
     dec di          ; Diminui o loop em 1.
     test di, di
@@ -223,6 +230,23 @@ disk_read:
 
     ret
 
+
+; --- Resetando o Controlador de Disco ---
+
+; Após inicializar os dispositivos de disco, é necessário uma função que redefina os estados
+; dos controladores para o seu modo básico, para operações futuras.
+; Basicamente, estamos devolvendo tudo ao seu lugar após usar os itens desejados.
+
+; Parâmetros
+; - dl: Número de Driver
+disk_reset:
+    pusha ; Salvando Registradores
+    mov ah, 0 ; Preparando solicitação
+    stc ; Flag de Carry (algumas bios não fazem)
+    int 13h ; Solicitando redefinição do disco.
+    jc floppy_error ; Em caso de erro...
+    popa ; Retornando registradores
+    ret
 
 
 
