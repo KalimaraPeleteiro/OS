@@ -1,3 +1,7 @@
+// Sistema FAT12 em C.
+// Não está incluso no sistema ainda, criado apenas para entender como o processo funciona.
+// Base para a implementação em Assembly.
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
