@@ -42,7 +42,71 @@ ebr_system_id:              db 'FAT12   '
 
 
 start:
-    jmp main ; Pulando para main.
+    mov ax, 0
+    mov ds, ax
+    mov es, ax
+
+    ; Iniciando a Stack de Comandos depois do nosso SO, para não ter conflito.
+    mov ss, ax
+    mov sp, 0x7c00
+
+    ; Algumas bios podem inicializar em 07C0:0000 ao invés de 0000:7C00. Vamos nos garantir que isso não aconteça.
+
+    ; O registrador extra segment (es) pode armazenar uma área específica na memória.
+    push es
+    push word .after ; Vamos salvar o endereço dos próximos comandos, para evitar conflitos.
+    retf ; retf faz o salto necessário.
+
+.after:
+
+    ; Lendo algo do disco.
+    mov [ebr_drive_number], dl
+
+    ;mov ax, 1       ; LBA = 1, vamos ler o segundo setor.
+    ;mov cl, 1       ; 1 setor para ler
+    ;mov bx, 0x7E00  ; Leitura será feita no endereço logo após do bootloader
+    ;call disk_read
+
+    ; Passando a mensage e chamando a função.
+    mov si, msg_initializing
+    call print
+
+    ; Vamos ler esses valores da BIOS ao invés do disco, para caso de problemas de corrupção de disco
+    push es
+    mov ah, 08h     ; Obtendo informações 
+    int 13h         ; da BIOS sobre o disco
+    jc floppy_error ; Caso de erro.
+    pop es
+
+    and cl, 0x3F
+    xor ch, ch
+    mov [bdb_sectors_per_track], cx     ; contagem de setores
+
+    inc dh
+    mov [bdb_heads], dh     ; contagem de heads
+
+
+    cli
+    hlt ; Interompe a CPU.
+
+
+; ===== ERROS =====
+; Aqui lidamos com eles.
+
+floppy_error:
+    mov si, msg_error_read_from_disk ; Mensagem simples de erro.
+    call print
+    jmp wait_key_and_reboot ; Em caso de erro, tentamos o reboot.
+
+wait_key_and_reboot:
+    mov ah, 0
+    int 16h             ; Esperando o usuário clicar em qualquer tecla.
+    jmp 0FFFFh:0        ; Pulando para o início da BIOS para reboot.
+    hlt
+
+.halt:
+    cli
+    hlt
 
 
 ; ===== CÓDIGO DE MENSAGEM INICIAL =====
@@ -71,50 +135,6 @@ print:
     pop bx
     pop si
     ret
-
-
-main:
-    mov ax, 0
-    mov ds, ax
-    mov es, ax
-
-    ; Iniciando a Stack de Comandos depois do nosso SO, para não ter conflito.
-    mov ss, ax
-    mov sp, 0x7c00
-
-    ; Lendo algo do disco.
-    mov [ebr_drive_number], dl
-
-    mov ax, 1       ; LBA = 1, vamos ler o segundo setor.
-    mov cl, 1       ; 1 setor para ler
-    mov bx, 0x7E00  ; Leitura será feita no endereço logo após do bootloader
-    call disk_read
-
-    ; Passando a mensage e chamando a função.
-    mov si, msg_initializing
-    call print
-
-    cli
-    hlt ; Interompe a CPU.
-
-
-; ===== ERROS =====
-; Aqui lidamos com eles.
-
-floppy_error:
-    mov si, msg_error_read_from_disk ; Mensagem simples de erro.
-    call print
-    jmp wait_key_and_reboot ; Em caso de erro, tentamos o reboot.
-
-wait_key_and_reboot:
-    mov ah, 0
-    int 16h             ; Esperando o usuário clicar em qualquer tecla.
-    jmp 0FFFFh:0        ; Pulando para o início da BIOS para reboot.
-    hlt
-
-.halt:
-    cli
-    hlt
 
 
 ; ===== IMPLEMENTANDO ROTINAS DE DISCO =====
