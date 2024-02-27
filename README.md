@@ -37,7 +37,7 @@ main:
 ; ===== Criando um Setor de Inicialização de Boot =====
 ; Um setor válido possui 512 bytes.
 times 510-($-$$) db 0 ; Vamos preencher 510 com zeros...
-dw 0AA55h ; E o último byte com a assinatura de validação.
+dw 0AA55h ; E os dois últimos bytes com a assinatura de validação.
 ```
 
 Mas, como demonstrado nos comentários, um Setor Válido de Inicialização de Boot deve possuir 512 Bytes. Isso não chega nem próximo dos 1.44MB do nosso sistema, então o Sistema Operacional não deve ser concentrado em um arquivo. Por isso, ele é dividido em dois elementos:
