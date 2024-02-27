@@ -62,9 +62,15 @@ start:
     ; Lendo algo do disco.
     mov [ebr_drive_number], dl
 
+    ;mov ax, 1       ; LBA = 1, vamos ler o segundo setor.
+    ;mov cl, 1       ; 1 setor para ler
+    ;mov bx, 0x7E00  ; Leitura será feita no endereço logo após do bootloader
+    ;call disk_read
+
     ; Passando a mensage e chamando a função.
     mov si, msg_initializing
     call print
+
 
     ; Vamos ler esses valores da BIOS ao invés do disco, para caso de problemas de corrupção de disco
     push es
@@ -93,7 +99,6 @@ start:
     xor bh, bh                          ; bh = 0
     mul bx                              ; ax = (N° de File Allocation Tables * Setores por FAT)
     add ax, [bdb_reserved_sectors]      ; Somando com o espaço reservado, temos o LBA da Root.
-    push ax
 
     ; Agora, calculando o tamanho do diretório Root. Fórmula: (32 * número de entradas)/bytes por setor.
     mov ax, [bdb_dir_entries_count]     ; Passando número de entradas.
@@ -358,7 +363,7 @@ disk_read:
     mov ah, 02h
     mov di, 3 ;Contagem de tentativas.
 
-; Discos Floppy não são muito confiáveis e podem gerar erros na leitura. Assim, tentamos a leitura 
+; Discos Floppy não são muito confiáveis e podem gerar na leitura. Assim, tentamos a leitura 
 ; 03 vezes antes de declarar um erro.
 .retry:
     pusha           ; Salvando Registradores, porque a BIOS pode modificar
@@ -407,11 +412,10 @@ disk_reset:
     ret
 
 
-; As mensagens NÃO PODEM MUDAR. Já utilizei quase todos os 512 bytes nesse programa. Caso mudadas, 
-; o erro com o times ocorre. Se ocorrer, diminua elas até não ocorrer mais.
-msg_initializing: db "Carregando...", ENDL, 0
-msg_error_read_from_disk: db "Falha em leitura.", ENDL, 0
-msg_error_kernel_not_found: db "KERNEL.BIN não encontrado!", ENDL, 0
+
+msg_initializing: db "Inicializando Sistema Operacional...", ENDL, 0
+msg_error_read_from_disk: db "Falha na Leitura de Disco!", ENDL, 0
+msg_error_kernel_not_found: db "Não foi possível encontrar KERNEL.BIN.", ENDL, 0
 file_kernel_bin: db 'KERNEL  BIN'
 kernel_cluster: dw 0
 
