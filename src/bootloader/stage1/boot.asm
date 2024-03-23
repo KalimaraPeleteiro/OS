@@ -411,8 +411,8 @@ disk_reset:
 ; o erro com o times ocorre. Se ocorrer, diminua elas até não ocorrer mais.
 msg_initializing: db "Carregando...", ENDL, 0
 msg_error_read_from_disk: db "Falha em leitura.", ENDL, 0
-msg_error_kernel_not_found: db "KERNEL.BIN não encontrado!", ENDL, 0
-file_kernel_bin: db 'KERNEL  BIN'
+msg_error_kernel_not_found: db "STAGE2.BIN não encontrado!", ENDL, 0
+file_kernel_bin: db 'STAGE2  BIN'
 kernel_cluster: dw 0
 
 KERNEL_LOAD_SEGMENT     equ 0x2000
